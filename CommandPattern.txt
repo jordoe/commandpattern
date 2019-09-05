@@ -1,0 +1,142 @@
+#include <iostream>
+using namespace std;
+
+//Autor: Jorge Domínguez Egea
+//Ingeniería de Videojuegos
+//Grado de Diseño y Desarrollo de Videojuegos, URJC
+
+//GAMELOOP APLICADO AL PATRON COMMAND
+
+
+//-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------Clases del progama en sí
+
+class InputHandler {                                //Es la clase llamada "Receiver" en el diagrama de clases original del patrón Command.
+    public:                                         //Es en la que se implementan los métodos de las diferentes acciones del personaje (o de 
+                                                    //cualquier otro elemento que quiera manejarse con la botonera)
+        InputHandler(){                             //Al igual que en el código de la teoría, el método jump solo devuelve un texto por pantalla.
+        }
+        void jump(){
+            cout << "Salto" << endl;   
+        }
+};
+
+class GameActor {                                   //Esta clase es la propia de cada actor del juego. En una aplicación más compleja,
+    public:                                         //incluiría los atributos de cada actor (po ej. vida, fuerza, etc.).
+        GameActor(){                                //Tiene un método jump() que, como puede observarse, llama a la función del mismo
+        }                                           //nombre de InputHandler. De esta forma, sea cual sea el actor que estamos manejando,
+        void jump(InputHandler& inputhandler){      //siempre se realizará la misma acción sobre él (la que fue implementada en su momento
+            inputhandler.jump();                    //en la función jump() de InputHandler.
+        }
+};
+
+class Command {                                     //Command es la clase abstracta que será "base" de JumpCommand (y de cualquier otro
+    public:                                         //comando que se implementase en el futuro).
+        virtual void execute(GameActor& actor) = 0;
+};
+
+class JumpCommand : public Command {                //La clase JumpCommand,como ya se ha comentado, hereda de Command. Tiene una variable
+    private:                                        //Tiene una variable privada de tipo InputHandler, la cual es incluida en el constructor.
+        InputHandler& inputHandler;                 //El método execute, hace que el actor salte 
+    public:
+        JumpCommand(InputHandler& inputHandler_) :
+        inputHandler(inputHandler_){
+        }
+        virtual void execute(GameActor& actor){
+            actor.jump(inputHandler);
+        }
+};
+
+
+class Gamepad {                                     //La clase Gamepad es la que maneja todos los botones del propio gamepad.                                                    
+    private:                                        //De esta forma, este método (junto con los contructores) permite asociar                                    
+        Command& jumpCommand;                       //de forma sencilla botones y acciones.
+        int button;                                 //El constructor, en el cual debe añadirse el jumpCommand pertinente,
+    public:                                         //asocia el botón 1 con la acción de saltar. Aquí se añadirían otros
+        Gamepad(Command& jumpCmd) :                 //constructores para cada nuevo comando.
+        jumpCommand(jumpCmd){
+            button = 1;
+        }
+        void PressButtons(GameActor& actor){
+            switch (button){
+                case 1:
+                    jumpCommand.execute(actor);
+                    break;
+            }
+        }
+};
+
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+double tableClock = 0;        //tableClock es el reloj del tiempo real
+int gameClock = 0;            //gameClock es el reloj del tiempo fabricado por el juego
+int MS_PER_UPDATE = 10;       //MS_PER_UPDATE es el periodo de actualizacion del estado
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------Métodos para llevar a cabo GameLoop
+
+void showTableClock (clock_t timeData) {                        //función que devuelve el tiempo real transcurrido desde la ejecución del programa
+    tableClock = double(timeData) / CLOCKS_PER_SEC * 1000;      //en el instante en el que se la llama
+    cout << "Table clock  = " 
+         << tableClock << " ms." << endl;
+}
+
+void updateGameState() {                    //Aquí se actualiza el estado del juego. Como en este ejemplo ésto no es necesario, el método solo incrementa el reloj del juego    
+    gameClock += MS_PER_UPDATE;             //Se incrementa el reloj del juego: MS_PER_UPDATE  
+}
+
+void render(Gamepad gamepadPS4, GameActor a1, GameActor a2) {  //Aquí se renderiza la escena del juego
+    
+    clock_t i = clock();                    //con i y f, se mide lo que tarda en hacer el proceso
+    gamepadPS4.PressButtons(a1);                
+    gamepadPS4.PressButtons(a2);
+    clock_t f = clock();
+    
+    double secs = (double)(f - i) / CLOCKS_PER_SEC;
+    
+    cout << "----------------------------------------"<< endl;
+    cout << "Renderizar la escena ha tomado: "<< endl;          
+    cout << secs<< " segundos," << endl;
+    cout << secs * 1000 << " milisegundos, "<< endl;
+    cout << "y "<< secs * 1000000 << " microsegundos. "<< endl;
+    cout << "----------------------------------------"<< endl;
+    cout << "Game Clock = "
+         << gameClock<< endl;
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+int main() {    //En el main, ahora se ejecuta el GameLoop
+    int k = 1;                      //k es el contador de vueltas del bucle while
+    int K_MAX = 3;                  //K_MAX es el número máximo de vueltas
+    
+    bool running = true;            //Booleano que indica si debe seguir ejecutándose el while
+    double lag = 0.0;               //El lag se inicializa a 0
+    clock_t init = clock();         //Esta función Clock() devuelve 0 al iniciarse el programa. Según se ejecuta el programa,
+    clock_t previous = init;        //devuelve el tiempo de procesador consumido por éste
+    
+    GameActor timmy;                                //Se crean objetos para realizar una ejecución de ejemplo.
+    GameActor bruno;                                //Se crean dos actores nuevos: timmy y bruno. Se crea un InputHandler, un JumpCommand (al que se le
+    InputHandler inputs2Game;                       //incluye el InputHandler creado) y un Gamepad (el cual se inicializa mediante su constructor que añade un JumpCommand)
+    JumpCommand doJump(inputs2Game);
+    Gamepad gamepadPS4(doJump);
+    
+    while(running){
+        cout << "==============================================="<< endl;
+        clock_t current = clock();
+        double elapsed = double(current - previous) / CLOCKS_PER_SEC * 1000;      //Aquí se calcula el tiempo transcurrido desde la anterior ejecución del while
+        previous = current;         //Se hace ésto, para que en la próxima ejecución de while, se puedan comparar los tiempos y ver el tiempo transcurrido
+        lag += elapsed;             //Aquí se incrementa el lag según el tiempo transcurrido desde la anterior ejecución del while
+        while (lag >= MS_PER_UPDATE) {               //En este while, se calibra el tiempo de juego con el real, de tal forma que no se sale de él hasta que lag
+            clock_t takeTime = clock();              //no iguale o supere el periodo de actualización del estado
+            showTableClock(double(takeTime-init));   
+            updateGameState();                       
+            lag -= MS_PER_UPDATE;                    
+        }
+        render(gamepadPS4, timmy, bruno);                   //Se renderiza la escena
+        clock_t takeTime = clock();                  
+        showTableClock(takeTime-init);    
+        k++;
+        if (k > K_MAX)
+            running = false;
+    }
+    cout << "==============================================="<< endl;
+}                                                   
